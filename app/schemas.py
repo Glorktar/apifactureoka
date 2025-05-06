@@ -4,6 +4,39 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+class ProduitBase(BaseModel):
+    nom: str
+    description: Optional[str] = None
+    prix_unitaire_ht: float
+    id_tva: int
+
+class ProduitCreate(ProduitBase):
+    pass
+
+class Produit(ProduitBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+
+class TvaBase(BaseModel):
+    taux: float
+    description: str
+    date_debut: date
+    date_fin: date | None = None
+
+class TvaCreate(TvaBase):
+    pass
+
+
+class Tva(TvaBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
 
 class ClientBase(BaseModel):
     nom: str

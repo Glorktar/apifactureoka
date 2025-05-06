@@ -18,6 +18,43 @@ def get_db():
     finally:
         db.close()
 
+@router.post("/produits", response_model=schemas.Produit)
+def create_produit(produit: schemas.ProduitCreate, db: Session = Depends(get_db)):
+    db_produit = models.Produit(
+        nom=produit.nom,
+        description=produit.description,
+        prix_unitaire_ht=produit.prix_unitaire_ht,
+        id_tva=produit.id_tva
+    )
+    #db_produit = Produit(**produit.dict())
+    db.add(db_produit)
+    db.commit()
+    db.refresh(db_produit)
+    return db_produit
+
+@router.get("/produits", response_model=List[schemas.Produit])
+def read_produits(db: Session = Depends(get_db)):
+    return db.query(models.Produit).all()
+
+
+@router.post("/tvas", response_model=schemas.Tva)
+def create_tva(tva: schemas.TvaCreate, db: Session = Depends(get_db)):
+    db_tva = models.Tva(
+        taux=tva.taux,
+        description=tva.description,
+        date_debut=tva.date_debut,
+        date_fin=tva.date_fin
+    )
+    db.add(db_tva)
+    db.commit()
+    db.refresh(db_tva)
+    return db_tva
+
+@router.get("/tvas", response_model=List[schemas.Tva])
+def read_tvas(db: Session = Depends(get_db)):
+    return db.query(models.Tva).all()
+
+
 @router.post("/clients", response_model=schemas.Client)
 def create_client(client: schemas.ClientCreate, db: Session = Depends(get_db)):
     db_client = models.Client(

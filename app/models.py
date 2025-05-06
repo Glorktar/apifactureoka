@@ -1,6 +1,25 @@
-from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from .database import Base
+
+class Produit(Base):
+    __tablename__ = "produit"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nom = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    prix_unitaire_ht = Column(Float, nullable=False)
+    id_tva = Column(Integer, ForeignKey("tva.id"), nullable=False)
+
+class Tva(Base):
+    __tablename__ = "tva"
+
+    id = Column(Integer, primary_key=True, index=True)
+    description = Column(String, nullable=False)
+    taux = Column(Float, nullable=False)
+    date_debut = Column(Date, nullable=False)
+    date_fin = Column(Date, nullable=True)
+
 
 class Client(Base):
     __tablename__ = "client"
