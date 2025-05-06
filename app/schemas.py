@@ -19,6 +19,12 @@ class Produit(ProduitBase):
     class Config:
         orm_mode = True
 
+class ProduitUpdate(BaseModel):
+    nom: Optional[str] = None
+    description: Optional[str] = None
+    prix_unitaire_ht: Optional[Decimal] = None
+    id_tva: Optional[float] = None
+
 
 
 class TvaBase(BaseModel):
@@ -72,6 +78,29 @@ class LigneFacture(LigneFactureBase):
     class Config:
         orm_mode = True
 
+class LigneFactureUpdate(BaseModel):
+    nom_produit_facture: Optional[str] = None
+    quantite: Optional[int] = None
+    prix_unitaire_ht: Optional[Decimal] = None
+    taux_tva: Optional[Decimal] = None
+
+class LigneFactureCreate(BaseModel):
+    nom_produit_facture: str
+    quantite: int
+    prix_unitaire_ht: Decimal
+    taux_tva: Decimal
+
+class LigneFacture(LigneFactureCreate):
+    id_ligne: int
+    montant_ht: Decimal
+    montant_tva: Decimal
+    montant_ttc: Decimal
+
+    class Config:
+        orm_mode = True
+
+
+
 class FactureBase(BaseModel):
     reference: str
     date_facturation: date
@@ -92,3 +121,5 @@ class Facture(FactureBase):
 
     class Config:
         orm_mode = True
+
+

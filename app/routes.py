@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 from . import models, schemas
 from .database import SessionLocal, engine
@@ -35,6 +35,21 @@ def create_produit(produit: schemas.ProduitCreate, db: Session = Depends(get_db)
 @router.get("/produits", response_model=List[schemas.Produit])
 def read_produits(db: Session = Depends(get_db)):
     return db.query(models.Produit).all()
+
+@router.put("/produits/{produit_id}", response_model=schemas.Produit)
+def update_produit(produit_id: int, produit_update: schemas.ProduitUpdate, db: Session = Depends(get_db)):
+    produit = db.query(models.Produit).filter(models.Produit.id == produit_id).first()
+    if not produit:
+        raise HTTPException(status_code=404, detail="Produit non trouvé")
+
+    update_data = produit_update.dict(exclude_unset=True)
+
+    for key, value in update_data.items():
+        setattr(produit, key, value)
+
+    db.commit()
+    db.refresh(produit)
+    return produit
 
 
 @router.post("/tvas", response_model=schemas.Tva)
@@ -134,3 +149,132 @@ def read_facture(facture_id: int, db: Session = Depends(get_db)):
     if not facture:
         raise HTTPException(status_code=404, detail="Facture non trouvée")
     return facture
+
+@router.put("/factures/{facture_id}/ligne/{id_ligne}", response_model=schemas.LigneFacture)
+def update_ligne_facture(
+    facture_id: int,
+    id_ligne: int,
+    ligne_update: schemas.LigneFactureCreate,
+    db: Session = Depends(get_db)
+):
+    # Vérification de l'existence de la ligne
+    ligne = db.query(models.LigneFacture).filter(
+        models.LigneFacture.id_ligne == id_ligne,
+        models.LigneFacture.id_facture == facture_id
+    ).first()
+    if not ligne:
+        raise HTTPException(status_code=404, detail="Ligne de facture non trouvée")
+
+    # Mise à jour de la ligne avec recalculs
+    montant_ht = (ligne_update.quantite * ligne_update.prix_unitaire_ht).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    montant_tva = ((montant_ht * ligne_update.taux_tva) / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    montant_ttc = (montant_ht + montant_tva).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    ligne.nom_produit_facture = ligne_update.nom_produit_facture
+    ligne.quantite = ligne_update.quantite
+    ligne.prix_unitaire_ht = ligne_update.prix_unitaire_ht
+    ligne.taux_tva = ligne_update.taux_tva
+    ligne.montant_ht = montant_ht
+    ligne.montant_tva = montant_tva
+    ligne.montant_ttc = montant_ttc
+
+    db.commit()
+
+    # Récupération et recalcul des totaux de la facture
+    facture = db.query(models.Facture).filter(models.Facture.id_facture == facture_id).first()
+    if not facture:
+        raise HTTPException(status_code=404, detail="Facture non trouvée")
+
+    total_ht = Decimal("0.00")
+    total_ttc = Decimal("0.00")
+
+    for l in facture.lignes:
+        total_ht += l.montant_ht
+        total_ttc += l.montant_ttc
+
+    facture.total_ht = total_ht.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    facture.total_ttc = total_ttc.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    db.commit()
+    db.refresh(ligne)
+    return ligne
+
+
+@router.post("/factures/{facture_id}/ligne", response_model=schemas.LigneFacture)
+def add_ligne_to_facture(
+    facture_id: int,
+    ligne_data: schemas.LigneFactureCreate,
+    db: Session = Depends(get_db)
+):
+    # Vérification que la facture existe
+    facture = db.query(models.Facture).filter(models.Facture.id_facture == facture_id).first()
+    if not facture:
+        raise HTTPException(status_code=404, detail="Facture non trouvée")
+
+    # Calculs des montants
+    montant_ht = (ligne_data.quantite * ligne_data.prix_unitaire_ht).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    montant_tva = ((montant_ht * ligne_data.taux_tva) / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    montant_ttc = (montant_ht + montant_tva).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    # Création de la ligne
+    nouvelle_ligne = models.LigneFacture(
+        id_facture=facture_id,
+        nom_produit_facture=ligne_data.nom_produit_facture,
+        quantite=ligne_data.quantite,
+        prix_unitaire_ht=ligne_data.prix_unitaire_ht,
+        taux_tva=ligne_data.taux_tva,
+        montant_ht=montant_ht,
+        montant_tva=montant_tva,
+        montant_ttc=montant_ttc,
+    )
+
+    db.add(nouvelle_ligne)
+    db.commit()
+
+    # Recalcul des totaux de la facture
+    total_ht = Decimal("0.00")
+    total_ttc = Decimal("0.00")
+    for l in facture.lignes:
+        total_ht += l.montant_ht
+        total_ttc += l.montant_ttc
+
+    facture.total_ht = total_ht.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    facture.total_ttc = total_ttc.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    db.commit()
+    db.refresh(nouvelle_ligne)
+    return nouvelle_ligne
+
+@router.delete("/factures/{facture_id}/ligne/{ligne_id}", status_code=204)
+def delete_ligne_facture(
+    facture_id: int,
+    ligne_id: int,
+    db: Session = Depends(get_db)
+):
+    # Vérification que la facture existe
+    facture = db.query(models.Facture).filter(models.Facture.id_facture == facture_id).first()
+    if not facture:
+        raise HTTPException(status_code=404, detail="Facture non trouvée")
+
+    # Vérification que la ligne existe et appartient à la facture
+    ligne = db.query(models.LigneFacture).filter(
+        models.LigneFacture.id_ligne == ligne_id,
+        models.LigneFacture.id_facture == facture_id
+    ).first()
+    if not ligne:
+        raise HTTPException(status_code=404, detail="Ligne de facture non trouvée")
+
+    # Suppression de la ligne
+    db.delete(ligne)
+    db.commit()
+
+    # Recalcul des totaux de la facture
+    lignes_restantes = db.query(models.LigneFacture).filter(models.LigneFacture.id_facture == facture_id).all()
+    total_ht = sum(l.montant_ht for l in lignes_restantes)
+    total_ttc = sum(l.montant_ttc for l in lignes_restantes)
+
+    facture.total_ht = Decimal(total_ht).quantize(Decimal("0.01"))
+    facture.total_ttc = Decimal(total_ttc).quantize(Decimal("0.01"))
+    db.commit()
+
+
