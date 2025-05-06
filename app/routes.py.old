@@ -1,0 +1,57 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from . import models, schemas
+from .database import SessionLocal, engine
+from typing import List
+
+
+models.Base.metadata.create_all(bind=engine)
+
+router = APIRouter()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.post("/factures", response_model=schemas.Facture)
+def create_facture(facture: schemas.FactureCreate, db: Session = Depends(get_db)):
+    db_facture = models.Facture(
+        numero_facture=facture.numero_facture,
+        date_facture=facture.date_facture,
+        code_client=facture.code_client
+    )
+    db.add(db_facture)
+    db.commit()
+    db.refresh(db_facture)
+
+    for ligne in facture.lignes:
+        db_ligne = models.LigneFacture(
+            id_facture=db_facture.id_facture,
+            nom_produit_facture=ligne.nom_produit_facture,
+            quantite=ligne.quantite,
+            prix_unitaire_ht=ligne.prix_unitaire_ht,
+            taux_tva=ligne.taux_tva,
+        )
+        db.add(db_ligne)
+
+    db.commit()
+    db.refresh(db_facture)
+    return db_facture
+
+
+@router.get("/factures", response_model=List[schemas.Facture])
+def read_factures(db: Session = Depends(get_db)):
+    return db.query(models.Facture).all()
+
+
+@router.get("/factures/{facture_id}", response_model=schemas.Facture)
+def read_facture(facture_id: int, db: Session = Depends(get_db)):
+    facture = db.query(models.Facture).filter(models.Facture.id_facture == facture_id).first()
+    if not facture:
+        raise HTTPException(status_code=404, detail="Facture non trouvée")
+    return facture

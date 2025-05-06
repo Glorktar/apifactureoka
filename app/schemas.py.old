@@ -1,0 +1,35 @@
+from typing import List, Optional
+from pydantic import BaseModel
+from datetime import date
+from decimal import Decimal
+
+class LigneFactureBase(BaseModel):
+    nom_produit_facture: str
+    quantite: int
+    prix_unitaire_ht: Decimal
+    taux_tva: Decimal
+
+class LigneFactureCreate(LigneFactureBase):
+    pass
+
+class LigneFacture(LigneFactureBase):
+    id_ligne: int
+
+    class Config:
+        orm_mode = True
+
+
+class FactureBase(BaseModel):
+    numero_facture: str
+    date_facture: date
+    code_client: str
+
+class FactureCreate(FactureBase):
+    lignes: List[LigneFactureCreate]
+
+class Facture(FactureBase):
+    id_facture: int
+    lignes: List[LigneFacture] = []
+
+    class Config:
+        orm_mode = True
