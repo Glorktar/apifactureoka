@@ -26,6 +26,15 @@ class ProduitUpdate(BaseModel):
     id_tva: Optional[float] = None
 
 
+class Produit(BaseModel):
+    id: int
+    nom: str
+    description: str | None = None
+    prix_unitaire_ht: float
+
+    class Config:
+        orm_mode = True
+
 
 class TvaBase(BaseModel):
     taux: float
@@ -59,6 +68,14 @@ class Client(ClientBase):
 
     class Config:
         orm_mode = True
+
+class ClientUpdate(BaseModel):
+    nom: str
+    email: Optional[str] = None
+    adresse: Optional[str] = None
+    telephone: Optional[str] = None
+    code_client: Optional[str] = None
+
 
 class LigneFactureBase(BaseModel):
     nom_produit_facture: str

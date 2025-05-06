@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
 from . import models, schemas
 from .database import SessionLocal, engine
@@ -36,6 +36,15 @@ def create_produit(produit: schemas.ProduitCreate, db: Session = Depends(get_db)
 def read_produits(db: Session = Depends(get_db)):
     return db.query(models.Produit).all()
 
+
+@router.get("/produits/{produit_id}", response_model=schemas.Produit)
+def get_produit(produit_id: int, db: Session = Depends(get_db)):
+    produit = db.query(models.Produit).filter(models.Produit.id == produit_id).first()
+    if not produit:
+        raise HTTPException(status_code=404, detail="Produit non trouvé")
+    return produit
+
+
 @router.put("/produits/{produit_id}", response_model=schemas.Produit)
 def update_produit(produit_id: int, produit_update: schemas.ProduitUpdate, db: Session = Depends(get_db)):
     produit = db.query(models.Produit).filter(models.Produit.id == produit_id).first()
@@ -50,6 +59,18 @@ def update_produit(produit_id: int, produit_update: schemas.ProduitUpdate, db: S
     db.commit()
     db.refresh(produit)
     return produit
+
+@router.delete("/produits/{produit_id}", status_code=204)
+def delete_produit(produit_id: int, db: Session = Depends(get_db)):
+    produit = db.query(models.Produit).filter(models.Produit.id == produit_id).first()
+    if not produit:
+        raise HTTPException(status_code=404, detail="Produit non trouvé")
+
+    db.delete(produit)
+    db.commit()
+    return
+
+
 
 
 @router.post("/tvas", response_model=schemas.Tva)
@@ -89,6 +110,38 @@ def create_client(client: schemas.ClientCreate, db: Session = Depends(get_db)):
 def read_clients(db: Session = Depends(get_db)):
     return db.query(models.Client).all()
 
+
+@router.get("/clients/{client_id}", response_model=schemas.Client)
+def get_client(client_id: int, db: Session = Depends(get_db)):
+    client = db.query(models.Client).filter(models.Client.id_client == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+    return client
+
+@router.delete("/clients/{client_id}", status_code=204)
+def delete_clientt(client_id: int, db: Session = Depends(get_db)):
+    client = db.query(models.Client).filter(models.Client.id_client == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    db.delete(client)
+    db.commit()
+    return
+
+@router.put("/clients/{client_id}", response_model=schemas.Client)
+def update_client(client_id: int, client_update: schemas.ClientUpdate, db: Session = Depends(get_db)):
+    client = db.query(models.Client).filter(models.Client.id_client == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    update_data = client_update.dict(exclude_unset=True)
+
+    for key, value in update_data.items():
+        setattr(client, key, value)
+
+    db.commit()
+    db.refresh(client)
+    return client
 
 @router.post("/factures", response_model=schemas.Facture)
 def create_facture(facture: schemas.FactureCreate, db: Session = Depends(get_db)):
